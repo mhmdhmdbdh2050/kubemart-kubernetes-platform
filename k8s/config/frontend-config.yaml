@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: kubemart
+data:
+  APP_NAME: "KubeMart"
+  ENVIRONMENT: "production"
+  API_URL: "/api"
