@@ -38,3 +38,4 @@ build/
 
 #frontend-secret-yaml
 k8s/config/frontend-secret.yaml
+k8s/config/postgres-secret.yaml
