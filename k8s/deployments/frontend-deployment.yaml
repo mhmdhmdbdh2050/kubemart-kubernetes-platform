@@ -1,6 +1,5 @@
 apiVersion: apps/v1
 kind: Deployment
-
 metadata:
   name: frontend
   namespace: kubemart
@@ -21,10 +20,31 @@ spec:
       containers:
         - name: nginx
           image: nginx:1.27
+
           envFrom:
             - configMapRef:
                 name: frontend-config
             - secretRef:
                 name: frontend-secret
+
           ports:
             - containerPort: 80
+              protocol: TCP
+
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
