@@ -21,6 +21,14 @@ spec:
         - name: nginx
           image: nginx:1.27
 
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+
           envFrom:
             - configMapRef:
                 name: frontend-config
