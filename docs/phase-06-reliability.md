@@ -97,5 +97,4 @@ not the health of every application function.
 - CPU utilization is calculated relative to CPU requests, not CPU limits.
 - A low CPU utilization does not trigger scale-up.
 - Metrics Server supplies metrics; the HPA controller uses those metrics to make scaling decisions.
--
 Step 17 — Resource Requests and Limits.
