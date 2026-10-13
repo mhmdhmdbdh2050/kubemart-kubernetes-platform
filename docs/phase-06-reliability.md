@@ -74,4 +74,28 @@ not the health of every application function.
 - `kubectl rollout undo` restores a previous Pod template and creates a new rollout.
 - The Git manifest should remain the source of truth; keep it aligned with the intended Deployment configuration.
 - A successful rollout confirms deployment progress, while application-level checks provide additional evidence of service health.
+## Step 19 — Horizontal Pod Autoscaler (HPA)
+
+### Metrics Server
+- Installed Metrics Server v0.9.0 to provide resource metrics.
+- Initial scraping failed because kubelet certificates did not contain the node IP addresses as IP SANs.
+- For this lab, added `--kubelet-insecure-tls` to the Metrics Server Deployment.
+- Metrics Server became ready, and `kubectl top nodes` returned CPU and memory metrics.
+- Security note: insecure kubelet TLS is a lab-only workaround. Production environments should use properly configured kubelet certificates.
+
+### Frontend HPA
+- Created `k8s/autoscaling/frontend-hpa.yaml`.
+- Target: Deployment `frontend` in namespace `kubemart`.
+- Metric: CPU utilization, target 60% of requested CPU.
+- Minimum replicas: 3.
+- Maximum replicas: 6.
+- Verified `ScalingActive=True` and `ValidMetricFound`.
+- At verification time, CPU utilization was 2% and the Deployment remained at 3 replicas.
+
+### Key Lessons
+- HPA adjusts replica count using resource metrics and target utilization.
+- CPU utilization is calculated relative to CPU requests, not CPU limits.
+- A low CPU utilization does not trigger scale-up.
+- Metrics Server supplies metrics; the HPA controller uses those metrics to make scaling decisions.
+-
 Step 17 — Resource Requests and Limits.
