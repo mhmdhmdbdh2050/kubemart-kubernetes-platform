@@ -97,4 +97,17 @@ not the health of every application function.
 - CPU utilization is calculated relative to CPU requests, not CPU limits.
 - A low CPU utilization does not trigger scale-up.
 - Metrics Server supplies metrics; the HPA controller uses those metrics to make scaling decisions.
+## Step 20 — PodDisruptionBudget (PDB)
+
+- Created `k8s/policies/frontend-pdb.yaml`.
+- Namespace: `kubemart`.
+- Selector: `app=frontend`.
+- `minAvailable: 2` ensures at least two frontend Pods remain available during supported voluntary disruptions.
+- Verified the PDB reports 3 current Pods, 3 total Pods, and 1 allowed disruption.
+- No drain operation was performed.
+
+### Key Lessons
+- A PDB helps protect availability during supported voluntary disruptions.
+- PDBs do not guarantee availability during involuntary failures, such as an unexpected node crash.
+- PDBs do not replace readiness probes, replicas, or rolling update settings.
 Step 17 — Resource Requests and Limits.
