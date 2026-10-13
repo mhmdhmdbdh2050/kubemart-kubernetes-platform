@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-init-demo
+  namespace: kubemart
+  labels:
+    app: frontend-init-demo
+spec:
+  restartPolicy: Never
+  initContainers:
+    - name: wait-for-frontend
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          until wget -q -O /dev/null http://frontend:80/; do
+            echo "Waiting for frontend Service..."
+            sleep 3
+          done
+          echo "Frontend Service is reachable."
+  containers:
+    - name: nginx
+      image: nginx:1.27
+      ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
