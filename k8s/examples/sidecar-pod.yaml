@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: frontend-sidecar-demo
+  namespace: kubemart
+  labels:
+    app: frontend-sidecar-demo
+
+spec:
+  restartPolicy: Never
+
+  containers:
+    # Main application container
+    - name: nginx
+      image: nginx:1.27
+      ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+      volumeMounts:
+        - name: nginx-logs
+          mountPath: /var/log/nginx
+
+    # Sidecar container for log streaming
+    - name: log-sidecar
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          tail -F /logs/access.log
+      volumeMounts:
+        - name: nginx-logs
+          mountPath: /logs
+          readOnly: true
+
+  # Shared temporary volume
+  volumes:
+    - name: nginx-logs
+      emptyDir: {}
