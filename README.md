@@ -40,74 +40,86 @@ The repository brings together Kubernetes manifests, Helm configuration, operati
 
 The following is a **logical architecture overview** based on the components represented in this repository. It describes intended component relationships, not a live inventory of deployed resources.
 
+### 1. Application Architecture
+
+This diagram shows the intended application request path and data-service relationships. Application-to-database connections must be verified against the application configuration.
+
 ```mermaid
 flowchart TB
-    U["Users / Clients"]
+    USER["Users / Clients"]
 
-    subgraph CLUSTER["Kubernetes Cluster"]
-        direction TB
-
-        subgraph ACCESS["Application Access"]
-            ING["Ingress Controller"]
-            INS["KubeMart Ingress Resource"]
-            FS["Frontend Service"]
-            FE["Frontend Deployment / Pods"]
-        end
-
-        subgraph DATA["Data Services"]
-            RS["Redis Service"]
-            RD["Redis Deployment"]
-            PS["PostgreSQL Service"]
-            PG["PostgreSQL StatefulSet"]
-            PVC["PersistentVolumeClaim"]
-            SC["StorageClass"]
-        end
-
-        subgraph REL["Reliability and Scheduling"]
-            HPA["Horizontal Pod Autoscaler"]
-            PDB["Pod Disruption Budget"]
-            JOB["Jobs and CronJobs"]
-            SCHED["Node Selector / Affinity / Taints"]
-        end
-
-        subgraph SEC["Security"]
-            RBAC["Roles and RoleBindings"]
-            NP["NetworkPolicy Examples"]
-            QUOTA["ResourceQuota"]
-            CTX["Security Context"]
-        end
-
-        subgraph OBS["Observability"]
-            PROM["Prometheus"]
-            GRAF["Grafana"]
-            FB["Fluent Bit"]
-            LOKI["Loki"]
-        end
+    subgraph ACCESS["Application Access"]
+        ING["NGINX Ingress Controller"]
+        RULE["KubeMart Ingress"]
+        SVC["Frontend Service :80"]
+        FE["Frontend Deployment"]
+        PODS["Frontend Pods"]
     end
 
-    U --> ING
-    INS -. "Routing configuration" .-> ING
-    ING --> FS
-    FS --> FE
+    subgraph DATA["Data Services"]
+        REDIS_SVC["Redis Service :6379"]
+        REDIS["Redis Deployment"]
+        PG_SVC["PostgreSQL Headless Service :5432"]
+        PG["PostgreSQL StatefulSet"]
+        PVC["PersistentVolumeClaim"]
+        SC["StorageClass"]
+    end
 
-    FE -. "Application data access, when configured" .-> RS
-    RS --> RD
-    FE -. "Database access, when configured" .-> PS
-    PS --> PG
+    USER --> ING
+    RULE -. "Configures routing rules" .-> ING
+    ING --> SVC
+    SVC --> PODS
+    FE -->|"Manages desired replicas"| PODS
+
+    PODS -. "If configured by application" .-> REDIS_SVC
+    REDIS_SVC --> REDIS
+
+    PODS -. "If configured by application" .-> PG_SVC
+    PG_SVC --> PG
     PG --> PVC
-    SC -. "Storage provisioning configuration" .-> PVC
+    SC -. "Storage provisioning parameters" .-> PVC
+```
 
-    HPA -. "Scaling policy" .-> FE
-    PDB -. "Disruption policy" .-> FE
-    SCHED -. "Placement rules" .-> FE
-    RBAC -. "Authorization rules" .-> CLUSTER
-    NP -. "Traffic policy" .-> CLUSTER
-    QUOTA -. "Resource limits" .-> CLUSTER
-    CTX -. "Container security settings" .-> FE
+### 2. Platform Operations
 
-    PROM --> GRAF
-    FB --> LOKI
-    LOKI --> GRAF
+This diagram separates operational controls from application traffic. Dashed lines represent configuration or policy relationships, not direct network traffic.
+
+```mermaid
+flowchart TB
+    subgraph OBS["Observability"]
+        PROM["Prometheus<br/>Metrics collection"]
+        GRAF["Grafana<br/>Dashboards and queries"]
+        FB["Fluent Bit<br/>Log collection"]
+        LOKI["Loki<br/>Log storage and queries"]
+
+        PROM -->|"Metrics data source"| GRAF
+        GRAF -->|"Log queries"| LOKI
+        FB -->|"Ships logs"| LOKI
+    end
+
+    subgraph REL["Reliability and Scheduling"]
+        HPA["Horizontal Pod Autoscaler"]
+        PDB["PodDisruptionBudget"]
+        JOB["Jobs and CronJobs"]
+        SCHED["Node Selector / Affinity / Taints"]
+    end
+
+    subgraph SEC["Security and Resource Governance"]
+        RBAC["Roles and RoleBindings"]
+        NP["NetworkPolicy"]
+        QUOTA["ResourceQuota"]
+        CTX["Security Context"]
+    end
+
+    APP["KubeMart Workloads"]
+
+    HPA -. "Scaling policy" .-> APP
+    PDB -. "Disruption policy" .-> APP
+    SCHED -. "Placement constraints" .-> APP
+    RBAC -. "Authorization rules" .-> APP
+    NP -. "Traffic policy" .-> APP
+    QUOTA -. "Resource constraints" .-> APP
+    CTX -. "Container security settings" .-> APP
 ```
 
 ### Architecture notes
