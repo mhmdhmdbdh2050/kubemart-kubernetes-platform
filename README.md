@@ -92,7 +92,7 @@ flowchart TB
         FB["Fluent Bit<br/>Log collection"]
         LOKI["Loki<br/>Log storage and queries"]
 
-        PROM -->|"Metrics data source"| GRAF
+        GRAF -->|"Queries metrics"| PROM
         GRAF -->|"Log queries"| LOKI
         FB -->|"Ships logs"| LOKI
     end
