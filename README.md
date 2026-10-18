@@ -432,13 +432,3 @@ GitHub: [@mhmdhmdbdh2050](https://github.com/mhmdhmdbdh2050)
 Project repository: [KubeMart Kubernetes Platform](https://github.com/mhmdhmdbdh2050/kubemart-kubernetes-platform)
 
 ---
-
-## 📄 License
-
-No license is declared in this README. Add an appropriate `LICENSE` file if you intend to grant others permission to use, modify, or distribute this project.
-
----
-
-<p align="center">
-  <em>Built to learn Kubernetes through hands-on engineering and continuous improvement.</em>
-</p>
