@@ -1,0 +1,27 @@
+replicaCount: 1
+
+image:
+  registry: registry-1.docker.io
+  repository: bitnami/nginx
+  tag: "1.31.7"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  ports:
+    http: 80
+    https: 443
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+
+autoscaling:
+  enabled: false
+
+networkPolicy:
+  enabled: false

@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: taint-with-toleration-demo
+  namespace: kubemart
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: testing
+      effect: NoSchedule
+  containers:
+    - name: demo
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Pod with toleration started"
+          sleep 3600
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "16Mi"
+        limits:
+          cpu: "50m"
+          memory: "32Mi"

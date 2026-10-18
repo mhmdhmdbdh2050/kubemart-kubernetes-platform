@@ -1,0 +1,27 @@
+alertmanager:
+  enabled: false
+
+  enabled: false
+
+server:
+  replicaCount: 1
+  retention: "3d"
+  retentionSize: "1GB"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  persistentVolume:
+    enabled: true
+    storageClass: kubemart-ebs-retain
+    accessModes:
+      - ReadWriteOnce
+    size: 3Gi
+
+prometheus-pushgateway:
+  enabled: false

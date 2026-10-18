@@ -1,0 +1,18 @@
+replicaCount: 1
+
+image:
+  repository: docker.io/library/nginx
+  tag: "1.31.7-alpine3.24-slim"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources:
+  requests:
+    cpu: 10m
+    memory: 16Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi

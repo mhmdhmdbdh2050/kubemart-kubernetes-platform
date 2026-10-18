@@ -39,3 +39,15 @@ build/
 #frontend-secret-yaml
 k8s/config/frontend-secret.yaml
 k8s/config/postgres-secret.yaml
+
+# Kubernetes secrets - never commit real credentials
+k8s/config/*-secret.yaml
+!k8s/config/*-secret.example.yaml
+
+# Editor swap files
+*.swp
+*.swo
+
+# Local backup files
+*.bak
+*.bak[0-9]

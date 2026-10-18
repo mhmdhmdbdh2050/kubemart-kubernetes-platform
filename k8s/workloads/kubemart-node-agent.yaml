@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kubemart-node-agent
+  namespace: kubemart
+  labels:
+    app: kubemart-node-agent
+spec:
+  selector:
+    matchLabels:
+      app: kubemart-node-agent
+  template:
+    metadata:
+      labels:
+        app: kubemart-node-agent
+    spec:
+      containers:
+        - name: node-agent
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              echo "KubeMart Node Agent started"
+              while true; do
+                echo "$(date -u) - Node agent is healthy"
+                sleep 60
+              done
+          resources:
+            requests:
+              cpu: "10m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "32Mi"

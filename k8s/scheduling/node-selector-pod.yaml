@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: node-selector-demo
+  namespace: kubemart
+  labels:
+    app: node-selector-demo
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: k8s-worker1
+  containers:
+    - name: demo
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Node Selector Demo started"
+          echo "Running on worker1"
+          sleep 3600
+      resources:
+        requests:
+          cpu: "10m"
+          memory: "16Mi"
+        limits:
+          cpu: "50m"
+          memory: "32Mi"
