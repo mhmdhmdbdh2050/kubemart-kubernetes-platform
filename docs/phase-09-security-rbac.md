@@ -27,6 +27,20 @@ The `pod-reader` Role grants `get`, `list`, and `watch` on core API resource `po
 | List Pods in `kubemart` | `yes` |
 | Delete Pods in `kubemart` | `no` |
 
+## In-Pod Verification
+
+A temporary Pod named `rbac-test` was created in the `kubemart` namespace
+using the `kubemart-reader` ServiceAccount and with ServiceAccount token
+automounting enabled.
+
+| Test from inside `rbac-test` | Result |
+|---|---|
+| `kubectl get pods -n kubemart` | Succeeded |
+| `kubectl auth can-i delete pods -n kubemart` | `no` |
+
+The temporary test Pod was deleted after verification. Its resource requests
+and limits were specified to satisfy the `kubemart-quota` ResourceQuota.
+
 ## Key Lessons
 - A Role grants permissions within one namespace.
 - A ClusterRole can grant permissions to cluster-scoped resources.
