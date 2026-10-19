@@ -83,8 +83,6 @@ config:
 volumeMounts:
   - name: config
     mountPath: /fluent-bit/etc/conf
-  - name: state
-    mountPath: /var/fluent-bit/state
 
 daemonSetVolumes:
   - name: varlog
