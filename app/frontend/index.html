@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101827">
+  <meta name="description" content="Discover everyday essentials at KubeMart.">
+  <title>KubeMart — Everyday, upgraded.</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #172033;
+      --muted: #667085;
+      --brand: #635bff;
+      --brand-dark: #4b43d6;
+      --surface: #ffffff;
+      --canvas: #f6f7fb;
+      --border: #e7e9f0;
+      --success: #087443;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+        BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--canvas); color: var(--ink); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; text-decoration: none; }
+
+    .announcement {
+      padding: 10px 16px;
+      background: #101827;
+      color: #fff;
+      text-align: center;
+      font-size: 12px;
+      letter-spacing: .04em;
+    }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 18px max(5%, calc((100% - 1200px) / 2));
+      background: rgba(255,255,255,.94);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+    }
+
+    .logo { font-size: 23px; font-weight: 850; letter-spacing: -.8px; }
+    .logo span { color: var(--brand); }
+    .nav { display: flex; align-items: center; gap: 24px; color: #475467; font-size: 14px; }
+    .cart-button, .primary {
+      border: 0;
+      border-radius: 12px;
+      background: var(--brand);
+      color: white;
+      font-weight: 700;
+      padding: 12px 16px;
+    }
+    .cart-button:hover, .primary:hover { background: var(--brand-dark); }
+
+    main { max-width: 1200px; margin: auto; padding: 30px 24px 72px; }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.15fr .85fr;
+      align-items: center;
+      gap: 32px;
+      padding: clamp(28px, 5vw, 64px);
+      overflow: hidden;
+      border-radius: 28px;
+      color: white;
+      background:
+        radial-gradient(circle at 90% 20%, #635bff 0, transparent 38%),
+        linear-gradient(125deg, #111827, #25345a);
+    }
+    .eyebrow { color: #c8c5ff; text-transform: uppercase; font-size: 12px; font-weight: 800; letter-spacing: .15em; }
+    h1 { max-width: 560px; margin: 16px 0; font-size: clamp(36px, 5vw, 62px); line-height: 1.04; letter-spacing: -2px; }
+    .hero p { max-width: 470px; color: #d5d9e5; line-height: 1.8; }
+    .hero-art { display: grid; place-items: center; min-height: 230px; font-size: clamp(100px, 17vw, 190px); filter: drop-shadow(0 24px 28px #0005); }
+    .hero .primary { margin-top: 14px; background: white; color: #29235f; }
+    .hero .primary:hover { background: #eeedff; }
+
+    .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin: 48px 0 22px; }
+    .section-heading h2 { margin: 0 0 6px; font-size: clamp(25px, 3vw, 34px); letter-spacing: -1px; }
+    .section-heading p { margin: 0; color: var(--muted); font-size: 14px; }
+
+    .toolbar { display: flex; gap: 12px; margin-bottom: 22px; }
+    .search {
+      width: 100%; min-width: 0; padding: 13px 16px;
+      border: 1px solid var(--border); border-radius: 12px; background: white;
+      outline: none;
+    }
+    .search:focus { border-color: var(--brand); box-shadow: 0 0 0 3px #635bff20; }
+
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
+    .product {
+      overflow: hidden; border: 1px solid var(--border); border-radius: 18px;
+      background: var(--surface); transition: transform .18s, box-shadow .18s;
+    }
+    .product:hover { transform: translateY(-4px); box-shadow: 0 16px 36px #1720330d; }
+    .product-image {
+      display: grid; place-items: center; width: 100%; aspect-ratio: 4/3;
+      background: linear-gradient(145deg, #f0efff, #e8f2ff);
+      font-size: 72px; overflow: hidden;
+    }
+    .product-image img { width: 100%; height: 100%; object-fit: cover; }
+    .product-body { padding: 17px; }
+    .product-body h3 { margin: 0 0 8px; font-size: 16px; }
+    .description { min-height: 40px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .product-bottom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+    .price { font-size: 17px; font-weight: 850; }
+    .add-button { padding: 9px 12px; border: 0; border-radius: 9px; background: #eeedff; color: var(--brand-dark); font-weight: 750; }
+    .add-button:hover { background: #dedbff; }
+    .stock { margin-top: 10px; color: var(--success); font-size: 12px; }
+    .stock.out { color: #b42318; }
+
+    .status { min-height: 24px; margin: 12px 0; color: var(--muted); font-size: 13px; }
+    .empty { grid-column: 1 / -1; padding: 48px 16px; text-align: center; color: var(--muted); border: 1px dashed #cfd3df; border-radius: 16px; }
+
+    .cart-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .panel { padding: 24px; border: 1px solid var(--border); border-radius: 18px; background: white; }
+    .panel h3 { margin: 0 0 18px; }
+    .cart-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--border); }
+    .cart-item small { display: block; margin-top: 5px; color: var(--muted); }
+    .quantity { display: flex; align-items: center; gap: 10px; }
+    .quantity button { width: 29px; height: 29px; border: 1px solid var(--border); border-radius: 8px; background: white; }
+    .total { display: flex; justify-content: space-between; gap: 12px; margin: 20px 0; font-size: 19px; font-weight: 850; }
+    .field { display: grid; gap: 7px; margin: 14px 0; }
+    .field label { color: #475467; font-size: 13px; font-weight: 650; }
+    .field input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }
+    .submit { width: 100%; padding: 14px; }
+    .notice { padding: 12px 14px; margin-top: 12px; border-radius: 10px; background: #eefbf4; color: #087443; font-size: 14px; }
+    .notice.error { background: #fff0ef; color: #b42318; }
+
+    footer { padding: 30px 24px; background: #101827; color: #bfc7d8; text-align: center; font-size: 13px; }
+    footer strong { color: white; }
+
+    @media (max-width: 900px) {
+      .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .hero { grid-template-columns: 1fr; }
+      .hero-art { min-height: 120px; }
+      .cart-layout { grid-template-columns: 1fr; }
+      .nav { display: none; }
+    }
+    @media (max-width: 480px) {
+      header { padding: 15px 18px; }
+      main { padding: 20px 14px 48px; }
+      .grid { gap: 10px; }
+      .product-body { padding: 12px; }
+      .product-image { font-size: 48px; }
+      .product-bottom { align-items: start; flex-direction: column; }
+      .add-button { width: 100%; }
+      .hero { padding: 28px 22px; border-radius: 20px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="announcement">A LITTLE SOMETHING BETTER, EVERY DAY · WELCOME TO KUBEMART</div>
+  <header>
+    <a class="logo" href="#" aria-label="KubeMart home">Kube<span>Mart</span>.</a>
+    <nav class="nav" aria-label="Main navigation">
+      <a href="#products">Shop</a>
+      <a href="#about">About</a>
+      <a href="#checkout">Checkout</a>
+    </nav>
+    <button class="cart-button" id="cart-link" type="button">Bag (<span id="cart-count">0</span>)</button>
+  </header>
+
+  <main>
+    <section class="hero" id="about">
+      <div>
+        <div class="eyebrow">Thoughtfully picked. Everyday ready.</div>
+        <h1>Everyday,<br>upgraded.</h1>
+        <p>Discover useful essentials for work, life and everything in between. Simple choices, good value, delivered through one easy shopping experience.</p>
+        <a class="primary" href="#products" style="display:inline-block">Explore the collection ↗</a>
+      </div>
+      <div class="hero-art" aria-hidden="true">🛍️</div>
+    </section>
+
+    <section id="products">
+      <div class="section-heading">
+        <div>
+          <h2>Made for your everyday</h2>
+          <p>Explore the KubeMart collection.</p>
+        </div>
+      </div>
+      <div class="toolbar">
+        <input class="search" id="search" type="search" placeholder="Search products..." aria-label="Search products">
+      </div>
+      <div class="status" id="product-status" role="status">Connecting to KubeMart API…</div>
+      <div class="grid" id="product-grid"></div>
+    </section>
+
+    <section id="checkout">
+      <div class="section-heading">
+        <div>
+          <h2>Your shopping bag</h2>
+          <p>Review your items and place your order.</p>
+        </div>
+      </div>
+      <div class="cart-layout">
+        <div class="panel">
+          <h3>Bag summary</h3>
+          <div id="cart-items"></div>
+          <div class="total"><span>Total</span><span id="cart-total">EGP 0.00</span></div>
+        </div>
+        <form class="panel" id="checkout-form">
+          <h3>Delivery details</h3>
+          <div class="field">
+            <label for="customer-name">Full name</label>
+            <input id="customer-name" name="customer_name" required minlength="2" maxlength="160" autocomplete="name" placeholder="Your full name">
+          </div>
+          <div class="field">
+            <label for="customer-email">Email address</label>
+            <input id="customer-email" name="customer_email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com">
+          </div>
+          <button class="primary submit" id="place-order" type="submit">Place order</button>
+          <div id="order-status" role="status" aria-live="polite"></div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer><strong>KubeMart.</strong> Everyday, upgraded. <span> · Built with Kubernetes.</span></footer>
+
+  <script>
+    const API_BASE = "/api";
+    const grid = document.getElementById("product-grid");
+    const productStatus = document.getElementById("product-status");
+    const search = document.getElementById("search");
+    const cartItemsElement = document.getElementById("cart-items");
+    const cartCount = document.getElementById("cart-count");
+    const cartTotal = document.getElementById("cart-total");
+    const orderStatus = document.getElementById("order-status");
+    const checkoutForm = document.getElementById("checkout-form");
+
+    let products = [];
+    const cart = new Map();
+
+    const money = value => new Intl.NumberFormat("en-EG", {
+      style: "currency", currency: "EGP"
+    }).format(Number(value));
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, character => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;",
+        '"': "&quot;", "'": "&#39;"
+      })[character]);
+    }
+
+    function productCard(product) {
+      const id = Number(product.id);
+      const quantity = cart.get(id) || 0;
+      const unavailable = Number(product.stock) <= 0;
+      const localImages = {
+        1: "/images/headphones.jpg",
+        2: "/images/smart-watch.jpg",
+        3: "/images/backpack.jpg",
+        4: "/images/usb-c-hub.jpg"
+      };
+      const imageUrl = localImages[id] || product.image_url;
+      const image = imageUrl
+        ? `<img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(product.name)}" loading="lazy" onerror="this.parentElement.innerHTML='📦'">`
+        : "📦";
+
+      return `
+        <article class="product">
+          <div class="product-image">${image}</div>
+          <div class="product-body">
+            <h3>${escapeHtml(product.name)}</h3>
+            <div class="description">${escapeHtml(product.description || "")}</div>
+            <div class="product-bottom">
+              <span class="price">${money(product.price)}</span>
+              <button class="add-button" data-add="${id}" ${unavailable ? "disabled" : ""}>
+                ${unavailable ? "Sold out" : quantity ? `Add more (${quantity})` : "Add to bag +"}
+              </button>
+            </div>
+            <div class="stock ${unavailable ? "out" : ""}">
+              ${unavailable ? "Currently unavailable" : `${Number(product.stock)} available`}
+            </div>
+          </div>
+        </article>`;
+    }
+
+    function renderProducts() {
+      const query = search.value.trim().toLowerCase();
+      const filtered = products.filter(product =>
+        `${product.name} ${product.description}`.toLowerCase().includes(query)
+      );
+      grid.innerHTML = filtered.length
+        ? filtered.map(productCard).join("")
+        : '<div class="empty">No products match your search.</div>';
+    }
+
+    function renderCart() {
+      const entries = [...cart.entries()];
+      const count = entries.reduce((sum, [, quantity]) => sum + quantity, 0);
+      cartCount.textContent = count;
+
+      if (!entries.length) {
+        cartItemsElement.innerHTML = '<div class="empty">Your bag is empty. Add a product to get started.</div>';
+      } else {
+        cartItemsElement.innerHTML = entries.map(([id, quantity]) => {
+          const product = products.find(item => Number(item.id) === id);
+          if (!product) return "";
+          return `
+            <div class="cart-item">
+              <div>
+                <strong>${escapeHtml(product.name)}</strong>
+                <small>${money(product.price)} each</small>
+              </div>
+              <div class="quantity">
+                <button type="button" data-change="${id}" data-delta="-1" aria-label="Remove one ${escapeHtml(product.name)}">−</button>
+                <span>${quantity}</span>
+                <button type="button" data-change="${id}" data-delta="1" aria-label="Add one ${escapeHtml(product.name)}">+</button>
+              </div>
+            </div>`;
+        }).join("");
+      }
+
+      const total = entries.reduce((sum, [id, quantity]) => {
+        const product = products.find(item => Number(item.id) === id);
+        return sum + (product ? Number(product.price) * quantity : 0);
+      }, 0);
+
+      cartTotal.textContent = money(total);
+      renderProducts();
+    }
+
+    async function loadProducts() {
+      productStatus.textContent = "Loading products…";
+      try {
+        const response = await fetch(`${API_BASE}/products`);
+        if (!response.ok) throw new Error("The product service is unavailable.");
+        products = await response.json();
+        productStatus.textContent = `${products.length} products available`;
+        renderProducts();
+        renderCart();
+      } catch (error) {
+        productStatus.textContent = "Could not load products. Please try again later.";
+        grid.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    grid.addEventListener("click", event => {
+      const button = event.target.closest("[data-add]");
+      if (!button) return;
+
+      const id = Number(button.dataset.add);
+      const product = products.find(item => Number(item.id) === id);
+      if (!product) return;
+
+      const current = cart.get(id) || 0;
+      if (current >= Number(product.stock)) {
+        orderStatus.className = "notice error";
+        orderStatus.textContent = "The requested quantity exceeds available stock.";
+        return;
+      }
+      cart.set(id, current + 1);
+      orderStatus.textContent = "";
+      renderCart();
+    });
+
+    cartItemsElement.addEventListener("click", event => {
+      const button = event.target.closest("[data-change]");
+      if (!button) return;
+
+      const id = Number(button.dataset.change);
+      const delta = Number(button.dataset.delta);
+      const current = cart.get(id) || 0;
+      const product = products.find(item => Number(item.id) === id);
+      const next = current + delta;
+
+      if (next <= 0) cart.delete(id);
+      else if (product && next <= Number(product.stock)) cart.set(id, next);
+      renderCart();
+    });
+
+    search.addEventListener("input", renderProducts);
+    document.getElementById("cart-link").addEventListener("click", () => {
+      document.getElementById("checkout").scrollIntoView({ behavior: "smooth" });
+    });
+
+    checkoutForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      orderStatus.className = "";
+      orderStatus.textContent = "";
+
+      if (!cart.size) {
+        orderStatus.className = "notice error";
+        orderStatus.textContent = "Add at least one product before placing an order.";
+        return;
+      }
+
+      const button = document.getElementById("place-order");
+      button.disabled = true;
+      button.textContent = "Placing order…";
+
+      const formData = new FormData(checkoutForm);
+      const payload = {
+        customer_name: formData.get("customer_name").trim(),
+        customer_email: formData.get("customer_email").trim(),
+        items: [...cart.entries()].map(([product_id, quantity]) => ({
+          product_id, quantity
+        }))
+      };
+
+      try {
+        const response = await fetch(`${API_BASE}/orders`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || "Unable to place the order.");
+        }
+
+        orderStatus.className = "notice";
+        orderStatus.textContent = `Order #${result.id} placed successfully. Total: ${money(result.total)}.`;
+        cart.clear();
+        checkoutForm.reset();
+        await loadProducts();
+      } catch (error) {
+        orderStatus.className = "notice error";
+        orderStatus.textContent = error.message || "Something went wrong.";
+      } finally {
+        button.disabled = false;
+        button.textContent = "Place order";
+      }
+    });
+
+    loadProducts();
+  </script>
+</body>
+</html>
