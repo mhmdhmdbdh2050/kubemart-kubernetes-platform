@@ -1,5 +1,7 @@
 # Phase 09 — Security: ServiceAccounts & RBAC
 
+> This phase documents authorization to the Kubernetes API. It is separate from customer authentication for the KubeMart application, documented in [Phase 10](phase-10-application-authentication.md).
+
 ## Objective
 Practice Kubernetes RBAC using a dedicated ServiceAccount with least-privilege permissions.
 

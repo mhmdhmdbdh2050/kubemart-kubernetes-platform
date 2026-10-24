@@ -1,6 +1,11 @@
 # Phase 06 — Reliability
 
-## Step 16: Kubernetes Probes
+## Historical lab record — Step 16: Kubernetes Probes
+
+The values below describe the frontend Deployment at the time of the original
+lab verification. The current custom frontend listens on port `8080`; its
+current probes use the named `http` port. See
+`k8s/deployments/frontend-deployment.yaml` for the active configuration.
 
 ### Objective
 Configure and verify readiness and liveness probes
@@ -30,8 +35,12 @@ It does not restart the container by itself.
 - Failure threshold: 3
 
 Purpose:
-Detects whether the container is responding.
+Detects whether the frontend NGINX container is responding.
 Repeated liveness failures cause Kubernetes to restart the container.
+
+### Current KubeMart API probes
+
+The API Deployment uses `/health` for readiness, which checks PostgreSQL connectivity, and `/live` for liveness, which checks only the API process. Keeping dependency checks out of the liveness probe avoids restarting healthy API processes during a database interruption.
 
 ### Verification
 - Manifest validation:
