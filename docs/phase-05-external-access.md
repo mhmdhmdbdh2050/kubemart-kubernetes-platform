@@ -1,5 +1,7 @@
 # Phase 05 — External Access
 
+> The NodePort and HTTP results below are historical lab verification. The current Ingress manifest uses the host `kubemart.example.com` and TLS Secret `kubemart-tls`; replace the example host and verify TLS before exposing the application.
+
 ## Step 13 — Ingress Controller
 
 The existing NGINX Ingress Controller is managed by Helm.
@@ -17,7 +19,7 @@ The controller is running and has been verified as Ready.
 
 The `kubemart-ingress` resource is deployed in the `kubemart` namespace.
 
-| Setting | Value |
+| Historical lab setting | Value |
 |---|---|
 | IngressClass | `nginx` |
 | Host | Not specified |

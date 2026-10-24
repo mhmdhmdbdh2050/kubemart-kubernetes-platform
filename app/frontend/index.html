@@ -22,6 +22,7 @@
     }
 
     * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
     body { margin: 0; background: var(--canvas); color: var(--ink); }
     button, input { font: inherit; }
     button { cursor: pointer; }
@@ -208,19 +209,35 @@
           <div id="cart-items"></div>
           <div class="total"><span>Total</span><span id="cart-total">EGP 0.00</span></div>
         </div>
-        <form class="panel" id="checkout-form">
-          <h3>Delivery details</h3>
-          <div class="field">
-            <label for="customer-name">Full name</label>
-            <input id="customer-name" name="customer_name" required minlength="2" maxlength="160" autocomplete="name" placeholder="Your full name">
+        <div class="panel">
+          <h3>Account</h3>
+          <form id="auth-form">
+            <div class="field" id="account-name-field">
+              <label for="account-name">Full name</label>
+              <input id="account-name" name="customer_name" required minlength="2" maxlength="160" autocomplete="name" placeholder="Your full name">
+            </div>
+            <div class="field">
+              <label for="account-email">Email address</label>
+              <input id="account-email" name="email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com">
+            </div>
+            <div class="field">
+              <label for="account-password">Password</label>
+              <input id="account-password" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password" placeholder="At least 12 characters">
+            </div>
+            <button class="primary submit" id="auth-submit" type="submit">Create account</button>
+            <button class="add-button" id="auth-mode-toggle" type="button">Already have an account? Sign in</button>
+          </form>
+          <div id="account-info" hidden>
+            <p>Signed in as <strong id="account-label"></strong></p>
+            <button class="add-button" id="sign-out" type="button">Sign out</button>
           </div>
-          <div class="field">
-            <label for="customer-email">Email address</label>
-            <input id="customer-email" name="customer_email" type="email" required maxlength="254" autocomplete="email" placeholder="you@example.com">
-          </div>
-          <button class="primary submit" id="place-order" type="submit">Place order</button>
+          <div id="auth-status" role="status" aria-live="polite"></div>
+          <hr>
+          <h3>Checkout</h3>
+          <p>Your order will be associated with your signed-in account.</p>
+          <button class="primary submit" id="place-order" type="button" disabled>Place order</button>
           <div id="order-status" role="status" aria-live="polite"></div>
-        </form>
+        </div>
       </div>
     </section>
   </main>
@@ -236,9 +253,18 @@
     const cartCount = document.getElementById("cart-count");
     const cartTotal = document.getElementById("cart-total");
     const orderStatus = document.getElementById("order-status");
-    const checkoutForm = document.getElementById("checkout-form");
+    const authForm = document.getElementById("auth-form");
+    const authStatus = document.getElementById("auth-status");
+    const accountInfo = document.getElementById("account-info");
+    const accountNameField = document.getElementById("account-name-field");
+    const accountPassword = document.getElementById("account-password");
+    const accountName = document.getElementById("account-name");
+    const accountEmail = document.getElementById("account-email");
+    const placeOrderButton = document.getElementById("place-order");
 
     let products = [];
+    let currentAccount = null;
+    let authMode = "register";
     const cart = new Map();
 
     const money = value => new Intl.NumberFormat("en-EG", {
@@ -385,8 +411,89 @@
       document.getElementById("checkout").scrollIntoView({ behavior: "smooth" });
     });
 
-    checkoutForm.addEventListener("submit", async event => {
+    function renderAccount() {
+      const signedIn = Boolean(currentAccount);
+      authForm.hidden = signedIn;
+      accountInfo.hidden = !signedIn;
+      accountNameField.hidden = authMode !== "register";
+      accountName.required = authMode === "register";
+      accountPassword.autocomplete = authMode === "register" ? "new-password" : "current-password";
+      document.getElementById("auth-submit").textContent = authMode === "register" ? "Create account" : "Sign in";
+      document.getElementById("auth-mode-toggle").textContent = authMode === "register"
+        ? "Already have an account? Sign in"
+        : "Need an account? Create one";
+      document.getElementById("account-label").textContent = signedIn
+        ? `${currentAccount.customer_name} (${currentAccount.email})`
+        : "";
+      placeOrderButton.disabled = !signedIn;
+    }
+
+    async function loadAccount() {
+      try {
+        const response = await fetch(`${API_BASE}/auth/me`);
+        currentAccount = response.ok ? await response.json() : null;
+      } catch {
+        currentAccount = null;
+      }
+      renderAccount();
+    }
+
+    document.getElementById("auth-mode-toggle").addEventListener("click", () => {
+      authMode = authMode === "register" ? "login" : "register";
+      authStatus.className = "";
+      authStatus.textContent = "";
+      accountPassword.value = "";
+      renderAccount();
+    });
+
+    authForm.addEventListener("submit", async event => {
       event.preventDefault();
+      authStatus.className = "";
+      authStatus.textContent = "";
+      const submit = document.getElementById("auth-submit");
+      submit.disabled = true;
+      const payload = {
+        email: accountEmail.value.trim(),
+        password: accountPassword.value
+      };
+      if (authMode === "register") payload.customer_name = accountName.value.trim();
+
+      try {
+        const response = await fetch(`${API_BASE}/auth/${authMode}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.detail || "Unable to sign in.");
+        currentAccount = result;
+        authForm.reset();
+        authStatus.className = "notice";
+        authStatus.textContent = authMode === "register" ? "Account created." : "Signed in.";
+        renderAccount();
+      } catch (error) {
+        authStatus.className = "notice error";
+        authStatus.textContent = error.message || "Unable to sign in.";
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    document.getElementById("sign-out").addEventListener("click", async () => {
+      try {
+        const response = await fetch(`${API_BASE}/auth/logout`, { method: "POST" });
+        if (!response.ok) throw new Error("Unable to sign out. Please try again.");
+        currentAccount = null;
+        authStatus.className = "";
+        authStatus.textContent = "";
+        renderAccount();
+      } catch (error) {
+        authStatus.className = "notice error";
+        authStatus.textContent = error.message;
+      }
+    });
+
+    placeOrderButton.addEventListener("click", async () => {
       orderStatus.className = "";
       orderStatus.textContent = "";
 
@@ -396,18 +503,13 @@
         return;
       }
 
-      const button = document.getElementById("place-order");
-      button.disabled = true;
-      button.textContent = "Placing order…";
-
-      const formData = new FormData(checkoutForm);
       const payload = {
-        customer_name: formData.get("customer_name").trim(),
-        customer_email: formData.get("customer_email").trim(),
         items: [...cart.entries()].map(([product_id, quantity]) => ({
           product_id, quantity
         }))
       };
+      placeOrderButton.disabled = true;
+      placeOrderButton.textContent = "Placing order…";
 
       try {
         const response = await fetch(`${API_BASE}/orders`, {
@@ -417,23 +519,28 @@
         });
         const result = await response.json();
         if (!response.ok) {
+          if (response.status === 401) {
+            currentAccount = null;
+            renderAccount();
+          }
           throw new Error(result.detail || "Unable to place the order.");
         }
 
         orderStatus.className = "notice";
         orderStatus.textContent = `Order #${result.id} placed successfully. Total: ${money(result.total)}.`;
         cart.clear();
-        checkoutForm.reset();
         await loadProducts();
+        await loadAccount();
       } catch (error) {
         orderStatus.className = "notice error";
         orderStatus.textContent = error.message || "Something went wrong.";
       } finally {
-        button.disabled = false;
-        button.textContent = "Place order";
+        placeOrderButton.textContent = "Place order";
+        placeOrderButton.disabled = !currentAccount;
       }
     });
 
+    loadAccount();
     loadProducts();
   </script>
 </body>

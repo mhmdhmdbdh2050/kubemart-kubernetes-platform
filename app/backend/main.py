@@ -1,13 +1,22 @@
+import hashlib
 import os
+import secrets
 import time
 from decimal import Decimal
 
 import psycopg
-from fastapi import FastAPI, HTTPException
+from fastapi import Cookie, Depends, FastAPI, HTTPException, Request, Response
 from psycopg.rows import dict_row
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
+from pwdlib import PasswordHash
 
-app = FastAPI(title="KubeMart API", version="1.0.0")
+app = FastAPI(title="KubeMart API", version="1.1.0")
+password_hash = PasswordHash.recommended()
+SESSION_COOKIE = "kubemart_session"
+SESSION_TTL_SECONDS = 60 * 60 * 24 * 7
+SESSION_COOKIE_SECURE = os.getenv("SESSION_COOKIE_SECURE", "true").lower() not in {
+    "0", "false", "no"
+}
 
 
 def connect_db():
@@ -39,6 +48,27 @@ def initialize_database():
                     )
                 """)
                 conn.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id BIGSERIAL PRIMARY KEY,
+                        customer_name VARCHAR(160) NOT NULL,
+                        email VARCHAR(254) NOT NULL UNIQUE,
+                        password_hash TEXT NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                conn.execute("""
+                    CREATE TABLE IF NOT EXISTS sessions (
+                        token_hash CHAR(64) PRIMARY KEY,
+                        user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                        expires_at TIMESTAMPTZ NOT NULL,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                """)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS sessions_expires_at_idx
+                    ON sessions(expires_at)
+                """)
+                conn.execute("""
                     CREATE TABLE IF NOT EXISTS orders (
                         id BIGSERIAL PRIMARY KEY,
                         customer_name VARCHAR(160) NOT NULL,
@@ -47,6 +77,13 @@ def initialize_database():
                         total NUMERIC(12, 2) NOT NULL CHECK (total >= 0),
                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                     )
+                """)
+                # Existing lab databases retain their old orders; new orders
+                # are linked to the authenticated customer.
+                conn.execute("""
+                    ALTER TABLE orders
+                    ADD COLUMN IF NOT EXISTS user_id BIGINT
+                    REFERENCES users(id) ON DELETE SET NULL
                 """)
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS order_items (
@@ -61,6 +98,9 @@ def initialize_database():
                     )
                 """)
 
+                # Multiple API replicas can start at once. Serialize initial
+                # catalog seeding so they cannot insert duplicate products.
+                conn.execute("SELECT pg_advisory_xact_lock(%s)", (73190421,))
                 count = conn.execute(
                     "SELECT COUNT(*) AS count FROM products"
                 ).fetchone()["count"]
@@ -112,15 +152,94 @@ def startup():
     initialize_database()
 
 
+class AccountInput(BaseModel):
+    customer_name: str = Field(min_length=2, max_length=160)
+    email: EmailStr = Field(max_length=254)
+    password: str = Field(min_length=12, max_length=128)
+
+
+class LoginInput(BaseModel):
+    email: EmailStr = Field(max_length=254)
+    password: str = Field(min_length=1, max_length=128)
+
+
 class OrderItem(BaseModel):
     product_id: int = Field(gt=0)
     quantity: int = Field(gt=0, le=20)
 
 
 class CreateOrder(BaseModel):
-    customer_name: str = Field(min_length=2, max_length=160)
-    customer_email: str = Field(min_length=3, max_length=254)
     items: list[OrderItem] = Field(min_length=1, max_length=50)
+
+
+def token_digest(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def set_session_cookie(response: Response, token: str):
+    response.set_cookie(
+        key=SESSION_COOKIE,
+        value=token,
+        max_age=SESSION_TTL_SECONDS,
+        httponly=True,
+        secure=SESSION_COOKIE_SECURE,
+        samesite="strict",
+        path="/",
+    )
+
+
+def create_session(conn, user_id: int, response: Response):
+    token = secrets.token_urlsafe(32)
+    conn.execute("DELETE FROM sessions WHERE expires_at <= NOW()")
+    conn.execute("""
+        INSERT INTO sessions (token_hash, user_id, expires_at)
+        VALUES (%s, %s, NOW() + (%s * INTERVAL '1 second'))
+    """, (token_digest(token), user_id, SESSION_TTL_SECONDS))
+    set_session_cookie(response, token)
+
+
+def get_current_user(
+    kubemart_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+):
+    if not kubemart_session:
+        raise HTTPException(status_code=401, detail="Sign in to continue")
+
+    try:
+        with connect_db() as conn:
+            user = conn.execute("""
+                SELECT u.id, u.customer_name, u.email
+                FROM sessions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.token_hash = %s AND s.expires_at > NOW()
+            """, (token_digest(kubemart_session),)).fetchone()
+    except psycopg.Error:
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in to continue")
+    return user
+
+
+def require_same_origin(request: Request):
+    # SameSite cookies provide the primary CSRF defense. Reject a supplied
+    # cross-origin Origin as defense in depth, accounting for TLS termination
+    # at the ingress proxy by comparing hostnames rather than schemes.
+    origin = request.headers.get("origin")
+    if origin:
+        from urllib.parse import urlsplit
+
+        try:
+            origin_host = urlsplit(origin).netloc.casefold()
+        except ValueError:
+            raise HTTPException(status_code=403, detail="Cross-origin request rejected")
+        request_host = request.headers.get("host", "").casefold()
+        if not origin_host or origin_host != request_host:
+            raise HTTPException(status_code=403, detail="Cross-origin request rejected")
+
+
+@app.get("/live")
+def live():
+    return {"status": "ok"}
 
 
 @app.get("/health")
@@ -131,6 +250,82 @@ def health():
         return {"status": "ok", "database": "connected"}
     except psycopg.Error:
         raise HTTPException(status_code=503, detail="Database unavailable")
+
+
+@app.post("/api/auth/register", status_code=201)
+def register(account: AccountInput, request: Request, response: Response):
+    require_same_origin(request)
+    name = account.customer_name.strip()
+    if len(name) < 2:
+        raise HTTPException(status_code=422, detail="Name must contain at least 2 characters")
+    email = str(account.email).strip().casefold()
+
+    try:
+        with connect_db() as conn:
+            user = conn.execute("""
+                INSERT INTO users (customer_name, email, password_hash)
+                VALUES (%s, %s, %s)
+                RETURNING id, customer_name, email
+            """, (name, email, password_hash.hash(account.password))).fetchone()
+            create_session(conn, user["id"], response)
+    except psycopg.errors.UniqueViolation:
+        raise HTTPException(status_code=409, detail="An account with this email already exists")
+    except psycopg.Error:
+        raise HTTPException(status_code=503, detail="Database operation failed")
+
+    return user
+
+
+@app.post("/api/auth/login")
+def login(credentials: LoginInput, request: Request, response: Response):
+    require_same_origin(request)
+    email = str(credentials.email).strip().casefold()
+    try:
+        with connect_db() as conn:
+            user = conn.execute("""
+                SELECT id, customer_name, email, password_hash
+                FROM users WHERE email = %s
+            """, (email,)).fetchone()
+    except psycopg.Error:
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+
+    if user is None or not password_hash.verify(credentials.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    try:
+        with connect_db() as conn:
+            create_session(conn, user["id"], response)
+    except psycopg.Error:
+        raise HTTPException(status_code=503, detail="Authentication service unavailable")
+    return {"id": user["id"], "customer_name": user["customer_name"], "email": user["email"]}
+
+
+@app.post("/api/auth/logout")
+def logout(
+    request: Request,
+    response: Response,
+    kubemart_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+):
+    require_same_origin(request)
+    if kubemart_session:
+        try:
+            with connect_db() as conn:
+                conn.execute("DELETE FROM sessions WHERE token_hash = %s", (token_digest(kubemart_session),))
+        except psycopg.Error:
+            raise HTTPException(status_code=503, detail="Authentication service unavailable")
+    response.delete_cookie(
+        key=SESSION_COOKIE,
+        path="/",
+        secure=SESSION_COOKIE_SECURE,
+        httponly=True,
+        samesite="strict",
+    )
+    return {"status": "signed_out"}
+
+
+@app.get("/api/auth/me")
+def current_account(user=Depends(get_current_user)):
+    return user
 
 
 @app.get("/api/products")
@@ -158,7 +353,12 @@ def get_product(product_id: int):
 
 
 @app.post("/api/orders", status_code=201)
-def create_order(order: CreateOrder):
+def create_order(
+    order: CreateOrder,
+    request: Request,
+    user=Depends(get_current_user),
+):
+    require_same_origin(request)
     try:
         with connect_db() as conn:
             # Lock product rows to avoid overselling concurrent orders.
@@ -193,11 +393,11 @@ def create_order(order: CreateOrder):
 
             created = conn.execute("""
                 INSERT INTO orders
-                    (customer_name, customer_email, total)
-                VALUES (%s, %s, %s)
+                    (user_id, customer_name, customer_email, total)
+                VALUES (%s, %s, %s, %s)
                 RETURNING id, customer_name, customer_email, status,
                           total, created_at
-            """, (order.customer_name, order.customer_email, total)).fetchone()
+            """, (user["id"], user["customer_name"], user["email"], total)).fetchone()
 
             for product_id, quantity in quantities.items():
                 product = product_map[product_id]

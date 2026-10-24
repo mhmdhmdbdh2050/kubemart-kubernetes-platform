@@ -42,7 +42,7 @@ The following is a **logical architecture overview** based on the components rep
 
 ### 1. Application Architecture
 
-This diagram shows the intended application request path and data-service relationships. Application-to-database connections must be verified against the application configuration.
+This diagram shows the application request path represented by the manifests and code.
 
 ```mermaid
 flowchart TB
@@ -52,8 +52,9 @@ flowchart TB
         ING["NGINX Ingress Controller"]
         RULE["KubeMart Ingress"]
         SVC["Frontend Service :80"]
-        FE["Frontend Deployment"]
-        PODS["Frontend Pods"]
+        FE["Frontend NGINX :8080"]
+        API_SVC["KubeMart API Service :8000"]
+        API["FastAPI backend"]
     end
 
     subgraph DATA["Data Services"]
@@ -68,13 +69,12 @@ flowchart TB
     USER --> ING
     RULE -. "Configures routing rules" .-> ING
     ING --> SVC
-    SVC --> PODS
-    FE -->|"Manages desired replicas"| PODS
-
-    PODS -. "If configured by application" .-> REDIS_SVC
+    SVC --> FE
+    FE -->|"Proxies /api"| API_SVC
+    API_SVC --> API
+    API -->|"Credentials from Kubernetes Secret"| PG_SVC
     REDIS_SVC --> REDIS
-
-    PODS -. "If configured by application" .-> PG_SVC
+    API -. "Separate lab workload; not used by app code" .-> REDIS_SVC
     PG_SVC --> PG
     PG --> PVC
     SC -. "Storage provisioning parameters" .-> PVC
@@ -125,14 +125,22 @@ flowchart TB
 ### Architecture notes
 
 - **Ingress and Services:** provide the configuration path for routing external application traffic to Kubernetes workloads.
-- **Frontend:** the repository includes a frontend Deployment and Service.
+- **Frontend and API:** the custom NGINX image serves the storefront and proxies `/api/` to FastAPI. Order creation requires a signed-in customer account.
 - **PostgreSQL:** represented by a StatefulSet, Service, and persistent-storage configuration.
-- **Redis:** represented by a Deployment and Service.
+- **Redis:** represented by a separate lab Deployment and Service; the KubeMart application code does not use it.
 - **Reliability:** includes HPA and PodDisruptionBudget manifests, along with workload scheduling examples.
 - **Security:** includes RBAC, NetworkPolicy, ResourceQuota, and security-context examples.
 - **Observability:** includes configuration for Prometheus, Grafana, Loki, and Fluent Bit.
 
 Dashed connections indicate policies, configuration relationships, or application dependencies that must be verified against the deployed configuration. They do not establish that every connection is currently active.
+
+### Application authentication
+
+Customers create an account with a name, email address, and password of at least 12 characters, or sign in with an existing account. The API validates email addresses, stores Argon2 password hashes, and issues a random session token in an `HttpOnly`, `Secure`, `SameSite=Strict` cookie. PostgreSQL stores only a hash of each session token. Sessions expire after seven days and are revoked on sign-out. Order creation requires a valid session and uses the signed-in account's name and email rather than accepting identity fields in the order request.
+
+The `kubemart-reader` ServiceAccount and RBAC examples control access to the Kubernetes API. They are separate from KubeMart customer accounts. The app does not yet include password reset or email verification; those are required before using customer accounts for a real commerce service.
+
+The Kubernetes API deployment marks the session cookie Secure. Use HTTPS for the configured host. For local HTTP-only development, set `SESSION_COOKIE_SECURE=false` in the local backend environment only; never use that setting for an internet-facing deployment.
 
 ### Edit the architecture diagram
 
@@ -174,11 +182,17 @@ The exact deployed versions and enabled features should be verified against the 
 
 ```text
 KubeMart/
+├── app/
+│   ├── backend/
+│   └── frontend/
+├── .github/
+│   └── workflows/
 ├── docs/
 │   ├── phase-05-external-access.md
 │   ├── phase-06-reliability.md
-│   └── phase-07-workloads.md
-├── helm/
+│   ├── phase-07-workloads.md
+│   ├── phase-09-security-rbac.md
+│   └── phase-10-application-authentication.md
 ├── k8s/
 │   ├── autoscaling/
 │   ├── config/
@@ -196,8 +210,6 @@ KubeMart/
 │   ├── statefulsets/
 │   ├── storage/
 │   └── workloads/
-├── manifests/
-├── scripts/
 ├── .gitignore
 └── README.md
 ```
@@ -292,23 +304,61 @@ Confirm that the cluster is reachable and the nodes are in a healthy state befor
 ### 3. Review the manifests
 
 ```bash
-find k8s manifests helm scripts docs -maxdepth 3 -type f | sort
+find app k8s docs -maxdepth 4 -type f | sort
 ```
 
 Inspect the namespace, application configuration, Services, storage, Ingress, and monitoring manifests before deployment.
 
-### 4. Review configuration and secrets
+### 4. Configure database, registry, and TLS credentials
 
 ```bash
-cat k8s/config/frontend-config.yaml
-cat k8s/config/frontend-secret.example.yaml
+cat k8s/config/postgres-secret.example.yaml
 ```
 
-Use the example secret file as a template where appropriate. Create real secret configuration locally and verify the repository's ignore rules before committing changes.
+Copy the PostgreSQL example to `k8s/config/postgres-secret.yaml` and replace the placeholders locally. After creating the `kubemart` namespace, apply this file there. The real file is ignored by Git. The frontend does not receive database credentials. Both application Deployments reference `ecr-pull-secret`; provision it in the namespace using your approved registry credential process before deploying the private ECR images.
+
+Build and push the backend and frontend images to the ECR repositories configured in the manifests. Use a new tag for each build. The Ingress uses the example host `kubemart.example.com` and expects a TLS Secret named `kubemart-tls`; replace the host with one you control and create the TLS Secret from its certificate and private key in the `kubemart` namespace before applying the Ingress.
+
+```bash
+REGISTRY=771962256401.dkr.ecr.us-east-1.amazonaws.com
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REGISTRY"
+docker build -f app/backend/Dockerfile -t "$REGISTRY/kubemart-api:v3" app/backend
+docker push "$REGISTRY/kubemart-api:v3"
+docker build -f app/frontend/Dockerfile -t "$REGISTRY/kubemart-frontend:v1" app/frontend
+docker push "$REGISTRY/kubemart-frontend:v1"
+```
+
+Create the TLS Secret with your certificate and private key, for example:
+
+```bash
+kubectl create secret tls kubemart-tls --namespace kubemart \
+  --cert=/path/to/fullchain.pem --key=/path/to/private-key.pem
+```
 
 **Never paste real passwords, tokens, or private credentials into this README or a public Git repository.**
 
-### 5. Verify deployed resources
+### 5. Deploy and verify resources
+
+Apply manifests in dependency order. The ECR pull Secret and TLS Secret must exist first.
+
+```bash
+kubectl apply -f k8s/namespace/namespace.yaml
+kubectl apply -f k8s/config/postgres-secret.yaml
+kubectl apply -f k8s/storage/kubemart-storageclass.yaml
+kubectl apply -f k8s/storage/postgres-pvc.yaml
+kubectl apply -f k8s/services/postgres-service.yaml
+kubectl apply -f k8s/statefulsets/postgres-statefulset.yaml
+kubectl rollout status statefulset/postgres -n kubemart
+kubectl apply -f k8s/app/backend.yaml
+kubectl apply -f k8s/deployments/frontend-deployment.yaml
+kubectl apply -f k8s/services/frontend-service.yaml
+kubectl apply -f k8s/security/network-policy-example.yaml
+kubectl apply -f k8s/security/api-ingress-policy.yaml
+kubectl apply -f k8s/security/postgres-ingress-policy.yaml
+kubectl apply -f k8s/ingress/kubemart-ingress.yaml
+```
+
+StorageClass settings may need adjustment for the cluster. Standalone examples and lab resources under `k8s/examples/` and `k8s/helm/` are not part of this application deployment sequence.
 
 The following commands are for inspection; they do not create or modify resources.
 
@@ -322,7 +372,7 @@ kubectl get pods -A
 
 Use the results to establish which resources are actually deployed. Apply manifests only after reviewing their dependencies, namespace settings, storage requirements, and configuration.
 
-> **Important:** There is no universal one-command deployment procedure documented here. Apply the resources in the order required by their dependencies and the current cluster configuration.
+Confirm the cluster has the expected storage provisioner, ingress controller, DNS, registry access, and NetworkPolicy enforcement before deployment. The CI workflow compiles backend source, builds both images, and validates Kubernetes manifests (excluding Helm values); it does not deploy to a cluster.
 
 ---
 
@@ -350,6 +400,10 @@ A configuration file existing in the repository does not guarantee that its Helm
 
 ## 🔐 Security Considerations
 
+- API order creation requires a customer account. Passwords are hashed with Argon2 and session cookies are `HttpOnly`, `Secure`, and `SameSite=Strict`.
+- Configure the Ingress host and TLS certificate together, and verify HTTPS before handling customer data.
+- Keep database credentials out of frontend Pods. Only the API and PostgreSQL workloads need the database Secret.
+- API and PostgreSQL NetworkPolicies restrict inbound traffic to the application components; confirm the cluster CNI enforces NetworkPolicy.
 - Never commit real credentials or unredacted Secret manifests.
 - Use example files for documentation and safe configuration templates.
 - Review `.gitignore` before staging configuration files.
@@ -414,6 +468,8 @@ These are development goals, not claims that every item is already implemented.
 ## 📚 Documentation
 
 Implementation notes are maintained in the `docs/` directory. Start with the phase documents to understand the project's external-access, reliability, and workload exercises.
+
+See [Phase 10 — Application Authentication](docs/phase-10-application-authentication.md) for account, session, cookie, and order-access behavior.
 
 For practical learning, follow this cycle:
 

@@ -3,10 +3,18 @@ kind: Ingress
 metadata:
   name: kubemart-ingress
   namespace: kubemart
+  annotations:
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - kubemart.example.com
+      secretName: kubemart-tls
   rules:
-    - http:
+    - host: kubemart.example.com
+      http:
         paths:
           - path: /
             pathType: Prefix

@@ -1,0 +1,44 @@
+name: Build and validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Go for Kubeconform
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Compile backend source
+        run: python -m compileall -q app/backend
+
+      - name: Build backend image
+        run: docker build -f app/backend/Dockerfile -t kubemart-api:ci app/backend
+
+      - name: Build frontend image
+        run: docker build -f app/frontend/Dockerfile -t kubemart-frontend:ci app/frontend
+
+      - name: Install Kubeconform
+        run: go install github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7
+
+      - name: Validate Kubernetes manifests
+        shell: bash
+        run: |
+          mapfile -d '' manifests < <(find k8s -type f -name '*.yaml' \
+            ! -path 'k8s/helm/*' ! -path 'k8s/monitoring/*' -print0)
+          kubeconform -strict -ignore-missing-schemas -summary "${manifests[@]}"
