@@ -34,6 +34,14 @@ The repository brings together Kubernetes manifests, Helm configuration, operati
 
 > **Project status:** This repository contains implementation manifests and learning labs. The presence of a manifest does not, by itself, prove that the resource is currently deployed or production-ready.
 
+## Arabic learning guide
+
+- [Read the 19-page Arabic DevOps guide](output/pdf/KubeMart-DevOps-Guide-Arabic.pdf)
+- [View the editable HTML source](output/pdf/KubeMart-DevOps-Guide-Arabic.html)
+- [View the architecture diagram (SVG)](output/pdf/KubeMart-Architecture-Arabic.svg)
+
+On Windows, regenerate the PDF and SVG from the HTML source with `./output/pdf/generate.ps1` after installing Chrome or Edge. The ECR account value in the guide is a placeholder; replace it with an account you control before running those commands.
+
 ---
 
 ## 🏗️ Architecture
