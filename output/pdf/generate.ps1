@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $sourcePath = Join-Path $PSScriptRoot 'KubeMart-DevOps-Guide-Arabic.html'
 $pdfPath = Join-Path $PSScriptRoot 'KubeMart-DevOps-Guide-Arabic.pdf'
-$svgPath = Join-Path $PSScriptRoot 'KubeMart-Architecture-Arabic.svg'
+$svgPath = Join-Path $PSScriptRoot 'KubeMart-Architecture.svg'
 
 if (-not (Test-Path -LiteralPath $sourcePath)) {
     throw "HTML source not found: $sourcePath"
