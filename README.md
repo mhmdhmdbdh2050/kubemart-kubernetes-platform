@@ -328,7 +328,8 @@ Copy the PostgreSQL example to `k8s/config/postgres-secret.yaml` and replace the
 Build and push the backend and frontend images to the ECR repositories configured in the manifests. Use a new tag for each build. The Ingress uses the example host `kubemart.example.com` and expects a TLS Secret named `kubemart-tls`; replace the host with one you control and create the TLS Secret from its certificate and private key in the `kubemart` namespace before applying the Ingress.
 
 ```bash
-REGISTRY=771962256401.dkr.ecr.us-east-1.amazonaws.com
+AWS_ACCOUNT_ID=<AWS_ACCOUNT_ID>
+REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REGISTRY"
 docker build -f app/backend/Dockerfile -t "$REGISTRY/kubemart-api:v3" app/backend
 docker push "$REGISTRY/kubemart-api:v3"
@@ -380,7 +381,7 @@ kubectl get pods -A
 
 Use the results to establish which resources are actually deployed. Apply manifests only after reviewing their dependencies, namespace settings, storage requirements, and configuration.
 
-Confirm the cluster has the expected storage provisioner, ingress controller, DNS, registry access, and NetworkPolicy enforcement before deployment. The CI workflow compiles backend source, builds both images, and validates Kubernetes manifests (excluding Helm values); it does not deploy to a cluster.
+Confirm the cluster has the expected storage provisioner, ingress controller, DNS, registry access, and NetworkPolicy enforcement before deployment. The [GitHub Actions workflow](.github/workflows/ci.yml) runs on pushes and pull requests. It checks out the repository, sets up Python 3.12 and Go 1.23, compiles the backend with `python -m compileall -q app/backend`, builds the backend and frontend Docker images, installs Kubeconform v0.6.7, and validates YAML manifests under `k8s/` (excluding Helm and monitoring directories).
 
 ---
 
@@ -403,6 +404,23 @@ kubectl get configmaps -A
 ```
 
 A configuration file existing in the repository does not guarantee that its Helm release is installed, its Pods are healthy, or its dashboards and data sources are working. Verify each component independently.
+
+### How I verified this
+
+Use the following commands in the target cluster and retain the actual output as evidence. These are verification commands to run; this README does not claim that their output has been captured for every component.
+
+```bash
+kubectl get pods -A
+kubectl get svc -A
+helm list -A
+kubectl get --raw /apis/metrics.k8s.io/v1beta1/nodes
+```
+
+For Grafana, capture a screenshot of a dashboard with a populated time range and the data-source status. For Loki, capture a successful LogQL query and its returned log lines. Add those real screenshots under `docs/screenshots/` and link them here only after confirming they came from the running environment.
+
+- Grafana dashboard evidence: [Add verified screenshot path]
+- Loki query evidence: [Add verified screenshot path]
+- Cluster and component verification date: [Add date]
 
 ---
 
