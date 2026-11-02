@@ -20,7 +20,7 @@ spec:
         - name: ecr-pull-secret
       containers:
         - name: api
-          image: 771962256401.dkr.ecr.us-east-1.amazonaws.com/kubemart-api:v3
+          image: kubemart-api:v3
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

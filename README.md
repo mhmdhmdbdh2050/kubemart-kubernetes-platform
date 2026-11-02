@@ -1,7 +1,7 @@
 # ☸️ KubeMart — Kubernetes E-Commerce Platform
 
 <p align="center">
-  <strong>A hands-on Kubernetes platform focused on cloud-native deployment, reliability, security, and observability.</strong>
+  <strong>A project-based Kubernetes platform for practicing application deployment, reliability controls, security, and observability.</strong>
 </p>
 
 <p align="center">
@@ -325,17 +325,18 @@ cat k8s/config/postgres-secret.example.yaml
 
 Copy the PostgreSQL example to `k8s/config/postgres-secret.yaml` and replace the placeholders locally. After creating the `kubemart` namespace, apply this file there. The real file is ignored by Git. The frontend does not receive database credentials. Both application Deployments reference `ecr-pull-secret`; provision it in the namespace using your approved registry credential process before deploying the private ECR images.
 
-Build and push the backend and frontend images to the ECR repositories configured in the manifests. Use a new tag for each build. The Ingress uses the example host `kubemart.example.com` and expects a TLS Secret named `kubemart-tls`; replace the host with one you control and create the TLS Secret from its certificate and private key in the `kubemart` namespace before applying the Ingress.
+The regular GitHub Actions workflow compiles the backend, builds both images, lints and renders the local Helm chart, and validates Kubernetes manifests. It does not publish images or deploy to a cluster.
 
-```bash
-AWS_ACCOUNT_ID="YOUR_AWS_ACCOUNT_ID"
-REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REGISTRY"
-docker build -f app/backend/Dockerfile -t "$REGISTRY/kubemart-api:v3" app/backend
-docker push "$REGISTRY/kubemart-api:v3"
-docker build -f app/frontend/Dockerfile -t "$REGISTRY/kubemart-frontend:v1" app/frontend
-docker push "$REGISTRY/kubemart-frontend:v1"
-```
+To publish images, configure these GitHub Actions values:
+
+| Type | Name | Purpose |
+|---|---|---|
+| Secret | `AWS_ROLE_ARN` | IAM role trusted for GitHub Actions OIDC |
+| Variable | `AWS_REGION` | Region containing the ECR repositories |
+| Variable | `ECR_API_REPOSITORY` | Existing backend repository name |
+| Variable | `ECR_FRONTEND_REPOSITORY` | Existing frontend repository name |
+
+The IAM role needs only ECR authorization and image push permissions scoped to these two repositories. Run the workflow manually and select `publish_images`; both images receive the commit SHA as their tag. The AWS account ID is obtained from the assumed role rather than stored in the repository.
 
 Create the TLS Secret with your certificate and private key, for example:
 
@@ -348,7 +349,7 @@ kubectl create secret tls kubemart-tls --namespace kubemart \
 
 ### 5. Deploy and verify resources
 
-Apply manifests in dependency order. The ECR pull Secret and TLS Secret must exist first.
+For a manual deployment, apply manifests in dependency order. The PostgreSQL Secret, ECR pull Secret, and TLS Secret must exist first.
 
 ```bash
 kubectl apply -f k8s/namespace/namespace.yaml
@@ -381,7 +382,17 @@ kubectl get pods -A
 
 Use the results to establish which resources are actually deployed. Apply manifests only after reviewing their dependencies, namespace settings, storage requirements, and configuration.
 
-Confirm the cluster has the expected storage provisioner, ingress controller, DNS, registry access, and NetworkPolicy enforcement before deployment. The [GitHub Actions workflow](.github/workflows/ci.yml) runs on pushes and pull requests. It checks out the repository, sets up Python 3.12 and Go 1.23, compiles the backend with `python -m compileall -q app/backend`, builds the backend and frontend Docker images, installs Kubeconform v0.6.7, and validates YAML manifests under `k8s/` (excluding Helm and monitoring directories).
+Confirm the cluster has the expected storage provisioner, ingress controller, DNS, registry access, and NetworkPolicy enforcement before deployment.
+
+### CI and gated deployment
+
+The [GitHub Actions workflow](.github/workflows/ci.yml) runs on pushes and pull requests. CI compiles the backend with `python -m compileall -q app/backend`, builds both images, lints and renders the included Helm chart, and validates the Kubernetes manifests with Kubeconform. It does not claim automated application tests or a cluster deployment.
+
+The optional deployment job is disabled unless all gates are configured: start a manual workflow run with both `publish_images` and `deploy` selected, set the Actions variable `KUBEMART_DEPLOYMENT_ENABLED=true`, and protect the `kubemart-deploy` environment with a required reviewer. The job runs only on a self-hosted Linux runner labeled `kubemart-cluster-access`.
+
+The runner needs a network route to the self-managed Kubernetes API and outbound access to GitHub and ECR. Store a short-lived, least-privilege kubeconfig in the `KUBECONFIG_B64` Actions secret; do not commit it. Before applying resources, the job checks that the namespace has `postgres-secret`, `ecr-pull-secret`, and `kubemart-tls`. Keep the ECR pull credential current, or configure a kubelet ECR credential provider. Configure storage, ingress, TLS, and NetworkPolicy support for the target cluster before enabling the deployment variable.
+
+No AWS image publishing or Kubernetes deployment was performed while preparing this branch.
 
 ---
 
