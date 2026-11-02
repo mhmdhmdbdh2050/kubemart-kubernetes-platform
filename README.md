@@ -328,8 +328,8 @@ Copy the PostgreSQL example to `k8s/config/postgres-secret.yaml` and replace the
 Build and push the backend and frontend images to the ECR repositories configured in the manifests. Use a new tag for each build. The Ingress uses the example host `kubemart.example.com` and expects a TLS Secret named `kubemart-tls`; replace the host with one you control and create the TLS Secret from its certificate and private key in the `kubemart` namespace before applying the Ingress.
 
 ```bash
-AWS_ACCOUNT_ID=<AWS_ACCOUNT_ID>
-REGISTRY=${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com
+AWS_ACCOUNT_ID="YOUR_AWS_ACCOUNT_ID"
+REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.us-east-1.amazonaws.com"
 aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin "$REGISTRY"
 docker build -f app/backend/Dockerfile -t "$REGISTRY/kubemart-api:v3" app/backend
 docker push "$REGISTRY/kubemart-api:v3"
