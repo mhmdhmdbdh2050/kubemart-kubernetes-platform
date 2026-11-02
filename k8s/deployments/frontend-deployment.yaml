@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: nginx
-          image: 771962256401.dkr.ecr.us-east-1.amazonaws.com/kubemart-frontend:v1
+          image: kubemart-frontend:v1
           imagePullPolicy: IfNotPresent
 
           resources:
